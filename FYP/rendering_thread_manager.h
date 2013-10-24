@@ -49,6 +49,10 @@ public:
     void clearTasks();
     void setPixelData(int x, int y, const Vec3& color);
     void stopRendering();
+    bool isAliasing(int i, int j);
+    void AA();
+	void startThreads();
+
     
     inline bool isRendering() const { return rendering; };
     inline void setScene(Scene* s) { scene = s; };

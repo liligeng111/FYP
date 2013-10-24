@@ -1,5 +1,7 @@
 #include "rendering_thread_manager.h"
 
+#define A_THRESHOLD 0.01
+
 RenderManager::RenderManager(int w, int h, int n)
 : width(w), height(h), maxDepth(10), threshold(Vec3(0.01)), numOfThreads(n) {
     camera = new Camera(Vec3(8, 5, 8), Vec3(0, 0, 0), Vec3(0, 1, 0));
@@ -124,7 +126,12 @@ void RenderManager::render() {
         
         distance++;
     }
-    
+	startThreads();
+}
+
+void RenderManager::startThreads()
+{
+	    
     /* initialize all the tracers and threads */
     tracers = new RayTracer*[numOfThreads];
     renderingThreads = new QThread*[numOfThreads];
@@ -155,6 +162,7 @@ void RenderManager::tracerCompleted() {
         // rendering = false;
         draw();
     }
+	AA();
         
     // current_utc_time(&end);
     /*
@@ -206,4 +214,46 @@ void RenderManager::current_utc_time(struct timespec *ts) {
     mach_port_deallocate(mach_task_self(), cclock);
     ts->tv_sec = mts.tv_sec;
     ts->tv_nsec = mts.tv_nsec;*/
+}
+
+
+bool RenderManager::isAliasing(int i, int j)
+{
+	if (i > 0 && (colorBuffer[i - 1][j].color - colorBuffer[i][j].color).length() > A_THRESHOLD)
+		return true;
+	if (j > 0 && (colorBuffer[i][j - i].color - colorBuffer[i][j].color).length() > A_THRESHOLD)
+		return true;
+	if (i < width - 1 && (colorBuffer[i + 1][j].color - colorBuffer[i][j].color).length() > A_THRESHOLD)
+		return true;
+	if (j < height - 1 && (colorBuffer[i][j + 1].color - colorBuffer[i][j].color).length() > A_THRESHOLD)
+		return true;
+	return false;
+}
+
+void RenderManager::AA()
+{
+	for (int i = 0; i < height; i++)
+	{
+		for (int j = 0; j < width; j++)
+		{
+			if (isAliasing(j, i))
+			{
+				colorBuffer[i][j].color = Vec3(0.0);
+				Ray* r1 = camera->getCameraRay(i + 0.5, j);
+				RenderNode* n1 = new RenderNode(r1, i, j, 0, Vec3(0.25f));
+				tasks.push(n1);				
+				Ray* r2 = camera->getCameraRay(i - 0.5, j);
+				RenderNode* n2 = new RenderNode(r2, i, j, 0, Vec3(0.25f));
+				tasks.push(n2);
+				Ray* r3 = camera->getCameraRay(i, j + 0.5);
+				RenderNode* n3 = new RenderNode(r3, i, j, 0, Vec3(0.25f));
+				tasks.push(n3);				
+				Ray* r4 = camera->getCameraRay(i, j - 0.5);
+				RenderNode* n4 = new RenderNode(r4, i, j, 0, Vec3(0.25f));
+				tasks.push(n4);
+			}
+		}
+	}
+	
+	startThreads();
 }
